@@ -18,7 +18,7 @@ return new class extends Migration
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
             $table->enum('role', ['super_admin', 'organizer', 'gateman'])->default('gateman');
-            $table->foreignId('organization_id')->nullable()->constrained('organizations')->onDelete('cascade');
+            $table->foreignId('organization_id')->nullable();
             $table->boolean('has_passkey')->default(false);
             $table->text('passkey_public_key')->nullable();
             $table->boolean('has_biometric')->default(false);

@@ -98,30 +98,75 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Show Flutter environment
+        run: |
+          flutter --version
+          dart --version
+          flutter doctor -v
+
       - name: Generate Android runner
-        run: flutter create --platforms=android --project-name depass_mobile --org com.gatepassx .
+        run: |
+          set -o pipefail
+          flutter create --platforms=android --project-name depass_mobile --org com.gatepassx . 2>&1 | tee ../flutter-create.log
 
       - name: Install Flutter dependencies
-        run: flutter pub get
+        run: |
+          set -o pipefail
+          flutter pub get 2>&1 | tee ../flutter-pub-get.log
 
       - name: Analyze Flutter code
-        run: flutter analyze
+        run: |
+          set -o pipefail
+          flutter analyze 2>&1 | tee ../flutter-analyze.log
 
       - name: Run Flutter tests when present
         run: |
+          set -o pipefail
           if [ -d test ]; then
-            flutter test
+            flutter test 2>&1 | tee ../flutter-test.log
           else
             echo "No Flutter test directory found; skipping flutter test."
           fi
 
       - name: Build Android APK
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_type == 'apk' || inputs.build_type == 'both' }}
-        run: flutter build apk --release
+        run: |
+          set -o pipefail
+          flutter build apk --release 2>&1 | tee ../flutter-build-apk.log
 
       - name: Build Android App Bundle
         if: ${{ github.event_name == 'workflow_dispatch' && (inputs.build_type == 'appbundle' || inputs.build_type == 'both') }}
-        run: flutter build appbundle --release
+        run: |
+          set -o pipefail
+          flutter build appbundle --release 2>&1 | tee ../flutter-build-aab.log
+
+      - name: Debug failed Flutter build
+        if: ${{ failure() }}
+        run: |
+          echo "Flutter diagnostics"
+          flutter --version || true
+          dart --version || true
+          flutter doctor -v || true
+          echo "pubspec.yaml"
+          sed -n '1,220p' pubspec.yaml || true
+          echo "Dependency tree"
+          dart pub deps || true
+          echo "Android output tree"
+          find build/app/outputs -maxdepth 5 -type f 2>/dev/null | sort || true
+
+      - name: Upload Flutter debug logs
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutter-debug-logs
+          path: |
+            flutter-create.log
+            flutter-pub-get.log
+            flutter-analyze.log
+            flutter-test.log
+            flutter-build-apk.log
+            flutter-build-aab.log
+          if-no-files-found: ignore
 
       - name: Upload APK
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_type == 'apk' || inputs.build_type == 'both' }}

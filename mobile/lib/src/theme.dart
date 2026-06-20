@@ -6,13 +6,11 @@ class AppTheme {
     final base = ThemeData.light();
 
     return base.copyWith(
-      colorScheme: base.colorScheme.copyWith(
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: const Color(0xFFFA3E2C),
         primary: const Color(0xFFFA3E2C),
         secondary: const Color(0xFF1B1B18),
-        background: const Color(0xFFF4F1ED),
         surface: Colors.white,
-        onPrimary: Colors.white,
-        onSecondary: Colors.white,
       ),
       scaffoldBackgroundColor: const Color(0xFFF4F1ED),
       appBarTheme: AppBarTheme(
@@ -53,7 +51,7 @@ class AppTheme {
         ),
         labelStyle: GoogleFonts.inter(color: const Color(0xFF4B4A45)),
       ),
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: Colors.white,
         elevation: 1,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),

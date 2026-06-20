@@ -42,7 +42,7 @@ class SystemConfigurationController extends Controller
         ], 201);
     }
 
-    public function show(SystemConfiguration $configuration)
+    public function show(SystemConfiguration $configuration, Request $request)
     {
         if ($request->user()->role !== 'super_admin') {
             return response()->json(['message' => 'Unauthorized'], 403);
@@ -73,7 +73,7 @@ class SystemConfigurationController extends Controller
         ]);
     }
 
-    public function destroy(SystemConfiguration $configuration)
+    public function destroy(SystemConfiguration $configuration, Request $request)
     {
         if ($request->user()->role !== 'super_admin') {
             return response()->json(['message' => 'Unauthorized'], 403);

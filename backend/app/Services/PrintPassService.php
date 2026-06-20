@@ -41,7 +41,7 @@ class PrintPassService
                     'status' => $pass->status,
                     'qr_data' => sprintf('GPX1|%s|%s', $pass->pass_uid, $pass->signature),
                 ];
-            }, $passes),
+            }, $passes, array_keys($passes)),
         ];
     }
 

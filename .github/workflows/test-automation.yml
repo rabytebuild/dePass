@@ -1,0 +1,266 @@
+name: App Functionality Automation
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - backend/**
+      - mobile/**
+      - .github/workflows/test-automation.yml
+  pull_request:
+    paths:
+      - backend/**
+      - mobile/**
+      - .github/workflows/test-automation.yml
+
+jobs:
+  laravel-api-tests:
+    name: Laravel API Functionality
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          extensions: mbstring, dom, fileinfo, sqlite, pdo_sqlite, openssl
+          coverage: none
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache/files
+          key: composer-${{ runner.os }}-${{ hashFiles('backend/composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Validate Composer config
+        run: composer validate --strict
+
+      - name: Prepare Laravel environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          touch database/database.sqlite
+
+      - name: Run migrations and seeders
+        env:
+          XDEBUG_MODE: off
+          DB_CONNECTION: sqlite
+          DB_DATABASE: database/database.sqlite
+        run: php artisan migrate:fresh --seed --force
+
+      - name: Validate API route registration
+        env:
+          XDEBUG_MODE: off
+        run: php artisan route:list --path=api
+
+      - name: Run Laravel automated tests
+        env:
+          XDEBUG_MODE: off
+          DB_CONNECTION: sqlite
+          DB_DATABASE: database/database.sqlite
+        run: php artisan test
+
+  laravel-live-smoke:
+    name: Laravel Live HTTP Smoke
+    runs-on: ubuntu-latest
+    needs: laravel-api-tests
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          extensions: mbstring, dom, fileinfo, sqlite, pdo_sqlite, openssl
+          coverage: none
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare Laravel environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          touch database/database.sqlite
+
+      - name: Build test database
+        env:
+          XDEBUG_MODE: off
+          DB_CONNECTION: sqlite
+          DB_DATABASE: database/database.sqlite
+        run: php artisan migrate:fresh --seed --force
+
+      - name: Start Laravel server
+        env:
+          XDEBUG_MODE: off
+          DB_CONNECTION: sqlite
+          DB_DATABASE: database/database.sqlite
+        run: |
+          php artisan serve --host=127.0.0.1 --port=8000 > ../laravel-server.log 2>&1 &
+          echo $! > ../laravel-server.pid
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8000/up >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat ../laravel-server.log
+          exit 1
+
+      - name: Run mobile-to-Laravel API smoke flow
+        run: |
+          python3 - <<'PY'
+          import json
+          import sys
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+          import uuid
+
+          BASE_URL = "http://127.0.0.1:8000/api"
+
+          def request(method, path, token=None, payload=None, expected=200):
+              data = None
+              headers = {"Accept": "application/json"}
+              if payload is not None:
+                  data = json.dumps(payload).encode()
+                  headers["Content-Type"] = "application/json"
+              if token:
+                  headers["Authorization"] = f"Bearer {token}"
+
+              req = urllib.request.Request(
+                  f"{BASE_URL}{path}",
+                  data=data,
+                  headers=headers,
+                  method=method,
+              )
+
+              try:
+                  with urllib.request.urlopen(req, timeout=20) as response:
+                      body = response.read().decode()
+                      status = response.status
+              except urllib.error.HTTPError as exc:
+                  body = exc.read().decode()
+                  status = exc.code
+
+              if status != expected:
+                  print(f"{method} {path} expected {expected}, got {status}")
+                  print(body)
+                  sys.exit(1)
+
+              return json.loads(body) if body else {}
+
+          login = request("POST", "/login", payload={
+              "username": "organizer1",
+              "password": "password123",
+          })
+          token = login["token"]
+
+          me = request("GET", "/me", token=token)
+          assert me["username"] == "organizer1", me
+
+          events = request("GET", "/events", token=token)
+          assert events["data"], events
+          event_id = events["data"][0]["id"]
+
+          pass_types = request("GET", f"/events/{event_id}/pass-types", token=token)
+          assert pass_types["data"], pass_types
+          pass_type_id = pass_types["data"][0]["id"]
+
+          created_pass = request("POST", f"/events/{event_id}/passes", token=token, payload={
+              "pass_type_id": pass_type_id,
+              "attendee_name": "Workflow Smoke Guest",
+              "company": "GitHub Actions",
+          }, expected=201)
+          assert created_pass["qr_data"].startswith("GPX1|"), created_pass
+
+          passes = request("GET", f"/events/{event_id}/passes", token=token)
+          assert passes["data"], passes
+
+          device_uuid = str(uuid.uuid4())
+          device = request("POST", "/devices", token=token, payload={
+              "uuid": device_uuid,
+              "device_fingerprint": "github-actions-smoke",
+          }, expected=201)
+          device_id = device["device"]["id"]
+
+          request("POST", f"/devices/{device_id}/approve", token=token)
+
+          package_path = f"/events/{event_id}/package?{urllib.parse.urlencode({'device_uuid': device_uuid})}"
+          event_package = request("GET", package_path, token=token)
+          assert event_package["format"] == "encrypted", event_package
+          assert event_package["event_package"], event_package
+
+          stats = request("GET", "/stats", token=token)
+          for key in ["events", "passes", "devices", "pending_devices", "templates"]:
+              assert key in stats, stats
+
+          print("Mobile-to-Laravel smoke flow passed.")
+          PY
+
+      - name: Stop Laravel server
+        if: ${{ always() }}
+        run: |
+          if [ -f ../laravel-server.pid ]; then
+            kill "$(cat ../laravel-server.pid)" 2>/dev/null || true
+          fi
+
+      - name: Upload Laravel server log
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: laravel-live-smoke-log
+          path: laravel-server.log
+          if-no-files-found: ignore
+
+  flutter-contract-check:
+    name: Flutter Contract Check
+    runs-on: ubuntu-latest
+    needs: laravel-api-tests
+    defaults:
+      run:
+        working-directory: mobile
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Generate Flutter platform files
+        run: flutter create --platforms=android --project-name depass_mobile --org com.gatepassx .
+
+      - name: Install Flutter dependencies
+        run: flutter pub get
+
+      - name: Analyze Flutter code
+        run: flutter analyze
+
+      - name: Run Flutter tests when present
+        run: |
+          if [ -d test ]; then
+            flutter test
+          else
+            echo "No Flutter test directory found; skipping flutter test."
+          fi
