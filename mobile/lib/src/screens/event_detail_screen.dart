@@ -9,11 +9,11 @@ class EventDetailScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Event Details'),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
+      body: const Padding(
+        padding: EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
+          children: [
             Text('Event details will appear here.', style: TextStyle(fontSize: 16, color: Color(0xFF1B1B18))),
             SizedBox(height: 16),
             Text(

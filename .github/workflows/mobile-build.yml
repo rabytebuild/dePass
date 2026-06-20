@@ -25,6 +25,9 @@ on:
       - mobile/**
       - .github/workflows/mobile-build.yml
 
+permissions:
+  contents: write
+
 jobs:
   laravel-tests:
     name: Laravel Tests
@@ -140,6 +143,93 @@ jobs:
           set -o pipefail
           flutter build appbundle --release 2>&1 | tee ../flutter-build-aab.log
 
+      - name: Prepare release assets
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_type == 'apk' || inputs.build_type == 'both' }}
+        run: |
+          set -euo pipefail
+
+          release_dir="../release"
+          laravel_staging="${release_dir}/laravel-shared-hosting"
+          laravel_zip="${release_dir}/depass-laravel-shared-hosting-${GITHUB_RUN_NUMBER}.zip"
+          apk_asset="${release_dir}/depass-mobile-${GITHUB_RUN_NUMBER}.apk"
+
+          rm -rf "${release_dir}"
+          mkdir -p "${laravel_staging}"
+
+          cp build/app/outputs/flutter-apk/app-release.apk "${apk_asset}"
+          cp -a ../backend/. "${laravel_staging}/"
+
+          rm -rf \
+            "${laravel_staging}/.env" \
+            "${laravel_staging}/.phpunit.result.cache" \
+            "${laravel_staging}/database/database.sqlite" \
+            "${laravel_staging}/vendor" \
+            "${laravel_staging}/node_modules" \
+            "${laravel_staging}/storage/framework/cache/data/"* \
+            "${laravel_staging}/storage/framework/testing/"* \
+            "${laravel_staging}/storage/framework/views/"*.php \
+            "${laravel_staging}/storage/logs/"*.log
+
+          cat > "${laravel_staging}/index.php" <<'PHP'
+          <?php
+
+          use Illuminate\Foundation\Application;
+          use Illuminate\Http\Request;
+
+          define('LARAVEL_START', microtime(true));
+
+          if (file_exists($maintenance = __DIR__.'/storage/framework/maintenance.php')) {
+              require $maintenance;
+          }
+
+          require __DIR__.'/vendor/autoload.php';
+
+          /** @var Application $app */
+          $app = require_once __DIR__.'/bootstrap/app.php';
+
+          $app->handleRequest(Request::capture());
+          PHP
+
+          cat > "${laravel_staging}/.htaccess" <<'HTACCESS'
+          <IfModule mod_rewrite.c>
+              <IfModule mod_negotiation.c>
+                  Options -MultiViews -Indexes
+              </IfModule>
+
+              RewriteEngine On
+
+              RewriteRule ^(?:app|bootstrap|config|database|resources|routes|storage|tests|vendor)(?:/|$) - [F,L]
+              RewriteRule ^(?:artisan|composer\.(?:json|lock)|package(?:-lock)?\.json|phpunit\.xml|vite\.config\.js)$ - [F,L]
+
+              RewriteCond %{HTTP:Authorization} .
+              RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+              RewriteCond %{HTTP:x-xsrf-token} .
+              RewriteRule .* - [E=HTTP_X_XSRF_TOKEN:%{HTTP:X-XSRF-Token}]
+
+              RewriteCond %{DOCUMENT_ROOT}/public%{REQUEST_URI} -f [OR]
+              RewriteCond %{DOCUMENT_ROOT}/public%{REQUEST_URI} -d
+              RewriteRule ^(.*)$ public/$1 [L]
+
+              RewriteCond %{REQUEST_FILENAME} !-d
+              RewriteCond %{REQUEST_URI} (.+)/$
+              RewriteRule ^ %1 [L,R=301]
+
+              RewriteCond %{REQUEST_FILENAME} !-d
+              RewriteCond %{REQUEST_FILENAME} !-f
+              RewriteRule ^ index.php [L]
+          </IfModule>
+
+          <FilesMatch "^\.">
+              Require all denied
+          </FilesMatch>
+          HTACCESS
+
+          (
+            cd "${laravel_staging}"
+            zip -qr "../$(basename "${laravel_zip}")" .
+          )
+
       - name: Debug failed Flutter build
         if: ${{ failure() }}
         run: |
@@ -181,3 +271,19 @@ jobs:
         with:
           name: depass-mobile-aab
           path: mobile/build/app/outputs/bundle/release/app-release.aab
+
+      - name: Publish GitHub release
+        if: ${{ github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.build_type == 'apk' || inputs.build_type == 'both') }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: depass-mobile-${{ github.run_number }}
+          name: DePass Mobile Build ${{ github.run_number }}
+          body: |
+            Automated release created after Laravel tests and a successful APK build.
+
+            Assets:
+            - Android release APK
+            - Tested Laravel source zip with root index.php and .htaccess for shared-hosting basedirs such as serv00.com
+          files: |
+            release/depass-mobile-${{ github.run_number }}.apk
+            release/depass-laravel-shared-hosting-${{ github.run_number }}.zip
