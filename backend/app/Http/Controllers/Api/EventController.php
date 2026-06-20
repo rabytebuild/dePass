@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Device;
 use App\Models\Event;
+use App\Models\Pass;
+use App\Models\PassTemplate;
 use App\Services\EventPackageService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -186,6 +188,61 @@ class EventController extends Controller
 
         return response()->json([
             'message' => 'Event deleted successfully',
+        ]);
+    }
+
+    public function stats(Request $request)
+    {
+        $eventQuery = Event::query();
+        $passQuery = Pass::query();
+
+        if ($request->user()->role === 'organizer') {
+            $eventQuery->where('organization_id', $request->user()->organization_id);
+            $passQuery->whereHas('event', function ($query) use ($request) {
+                $query->where('organization_id', $request->user()->organization_id);
+            });
+        } elseif ($request->user()->role === 'gateman') {
+            $eventQuery->where('status', 'active');
+            $passQuery->whereHas('event', function ($query) {
+                $query->where('status', 'active');
+            });
+        }
+
+        $events = $eventQuery->count();
+        $passes = $passQuery->count();
+
+        $deviceQuery = Device::where('status', 'approved');
+        $pendingDeviceQuery = Device::where('status', 'pending');
+        $templateQuery = PassTemplate::query();
+
+        if ($request->user()->role === 'organizer') {
+            $deviceQuery->whereHas('user', function ($query) use ($request) {
+                $query->where('organization_id', $request->user()->organization_id);
+            });
+            $pendingDeviceQuery->whereHas('user', function ($query) use ($request) {
+                $query->where('organization_id', $request->user()->organization_id);
+            });
+            $templateQuery->whereHas('event', function ($query) use ($request) {
+                $query->where('organization_id', $request->user()->organization_id);
+            });
+        } elseif ($request->user()->role === 'gateman') {
+            $deviceQuery->whereHas('user', function ($query) use ($request) {
+                $query->where('organization_id', $request->user()->organization_id);
+            });
+            $pendingDeviceQuery->whereHas('user', function ($query) use ($request) {
+                $query->where('organization_id', $request->user()->organization_id);
+            });
+            $templateQuery->whereHas('event', function ($query) {
+                $query->where('status', 'active');
+            });
+        }
+
+        return response()->json([
+            'events' => $events,
+            'passes' => $passes,
+            'devices' => $deviceQuery->count(),
+            'pending_devices' => $pendingDeviceQuery->count(),
+            'templates' => $templateQuery->count(),
         ]);
     }
 

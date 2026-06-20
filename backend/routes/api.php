@@ -6,6 +6,9 @@ use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\OrganizationController;
 use App\Http\Controllers\Api\EventController;
 use App\Http\Controllers\Api\PassController;
+use App\Http\Controllers\Api\PassTemplateController;
+use App\Http\Controllers\Api\DeviceController;
+use App\Http\Controllers\Api\SystemConfigurationController;
 use App\Http\Controllers\Api\PassTypeController;
 
 // Public routes
@@ -24,15 +27,28 @@ Route::middleware('auth:sanctum')->group(function () {
     // Organizations
     Route::apiResource('organizations', OrganizationController::class);
 
+    // Devices
+    Route::apiResource('devices', DeviceController::class);
+    Route::post('/devices/{device}/approve', [DeviceController::class, 'approve']);
+    Route::post('/devices/{device}/revoke', [DeviceController::class, 'revoke']);
+
+    // System configuration
+    Route::apiResource('configurations', SystemConfigurationController::class);
+
     // Events
     Route::apiResource('events', EventController::class);
     Route::put('/events/{event}/lock', [EventController::class, 'lock']);
+    Route::get('/stats', [EventController::class, 'stats']);
 
     // Pass Types
     Route::apiResource('events.pass-types', PassTypeController::class)->shallow();
 
+    // Pass Templates
+    Route::apiResource('events.templates', PassTemplateController::class)->shallow();
+
     // Passes
     Route::apiResource('events.passes', PassController::class)->shallow();
     Route::post('/events/{event}/passes/bulk-generate', [PassController::class, 'bulkGenerate']);
+    Route::post('/events/{event}/print-manifest', [PassController::class, 'printManifest']);
     Route::get('/events/{event}/package', [EventController::class, 'package']);
 });

@@ -45,4 +45,12 @@ class Event extends Model
     {
         return $this->hasMany(Pass::class);
     }
+
+    /**
+     * Get all pass templates for this event.
+     */
+    public function passTemplates(): HasMany
+    {
+        return $this->hasMany(PassTemplate::class);
+    }
 }

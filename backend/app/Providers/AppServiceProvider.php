@@ -2,8 +2,10 @@
 
 namespace App\Providers;
 
+use App\Models\Device;
 use App\Models\Event;
 use App\Models\User;
+use App\Policies\DevicePolicy;
 use App\Policies\EventPolicy;
 use App\Policies\UserPolicy;
 use Illuminate\Support\Facades\Gate;
@@ -26,5 +28,6 @@ class AppServiceProvider extends ServiceProvider
     {
         Gate::policy(Event::class, EventPolicy::class);
         Gate::policy(User::class, UserPolicy::class);
+        Gate::policy(Device::class, DevicePolicy::class);
     }
 }

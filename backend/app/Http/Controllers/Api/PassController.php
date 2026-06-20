@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Event;
 use App\Models\Pass;
+use App\Models\PassTemplate;
 use App\Models\PassType;
+use App\Services\PrintPassService;
 use App\Services\QrSignatureService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -148,6 +150,39 @@ class PassController extends Controller
             'message' => 'Bulk pass generation completed',
             'generated_count' => count($results),
             'results' => $results,
+        ]);
+    }
+
+    public function printManifest(Event $event, Request $request, PrintPassService $printPassService)
+    {
+        $this->authorize('view', $event);
+
+        $validated = $request->validate([
+            'template_id' => ['nullable', 'exists:pass_templates,id'],
+            'pass_ids' => ['nullable', 'array'],
+            'pass_ids.*' => ['integer', 'exists:passes,id'],
+        ]);
+
+        $passes = $event->passes();
+
+        if (!empty($validated['pass_ids'])) {
+            $passes->whereIn('id', $validated['pass_ids']);
+        }
+
+        $passes = $passes->with('passType')->get();
+        $template = null;
+
+        if (!empty($validated['template_id'])) {
+            $template = PassTemplate::where('id', $validated['template_id'])
+                ->where('event_id', $event->id)
+                ->first();
+        }
+
+        $manifest = $printPassService->buildPrintManifest($event, $passes->all(), $template);
+
+        return response()->json([
+            'message' => 'Print manifest generated successfully',
+            'manifest' => $manifest,
         ]);
     }
 }
