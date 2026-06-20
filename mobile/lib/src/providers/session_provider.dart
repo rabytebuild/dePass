@@ -5,7 +5,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 
 const _baseUrl = 'https://log.travelnetng.serv00.net/api';
-final _secureStorage = FlutterSecureStorage();
+const _secureStorage = FlutterSecureStorage();
 
 class SessionProvider extends ChangeNotifier {
   String? _token;

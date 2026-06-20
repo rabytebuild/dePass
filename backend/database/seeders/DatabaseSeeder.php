@@ -2,110 +2,125 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
-use App\Models\Organization;
+use App\Models\Device;
 use App\Models\Event;
-use App\Models\PassType;
+use App\Models\Organization;
 use App\Models\Pass;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+use App\Models\PassTemplate;
+use App\Models\PassType;
+use App\Models\Scan;
+use App\Models\SystemConfiguration;
+use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
 
 class DatabaseSeeder extends Seeder
 {
-    use WithoutModelEvents;
-
     /**
      * Seed the application's database.
      */
     public function run(): void
     {
-        // Create Super Admin user
-        $superAdmin = User::create([
-            'username' => 'admin',
-            'email' => 'admin@gatepassx.com',
-            'password' => Hash::make('password123'),
-            'role' => 'super_admin',
+        $defaultPassword = env('DEPASS_DEFAULT_PASSWORD', 'password123');
+
+        $superAdmin = User::factory()->superAdmin()->create([
+            'username' => env('DEPASS_ADMIN_USERNAME', 'admin'),
+            'email' => env('DEPASS_ADMIN_EMAIL', 'admin@gatepassx.com'),
+            'password' => Hash::make(env('DEPASS_ADMIN_PASSWORD', $defaultPassword)),
         ]);
 
-        // Create an organization
-        $organization = Organization::create([
+        $organization = Organization::factory()->create([
             'name' => 'Tech Conference 2026',
-            'metadata' => ['description' => 'Annual tech conference'],
+            'metadata' => [
+                'description' => 'Annual tech conference',
+                'seed' => 'default',
+            ],
             'created_by' => $superAdmin->id,
         ]);
 
-        // Create Organizer user
-        $organizer = User::create([
+        $organizer = User::factory()->organizer()->create([
             'username' => 'organizer1',
             'email' => 'organizer@techconf.com',
-            'password' => Hash::make('password123'),
-            'role' => 'organizer',
+            'password' => Hash::make($defaultPassword),
             'organization_id' => $organization->id,
         ]);
 
-        // Create Gate Operators
-        $gateman1 = User::create([
-            'username' => 'gateman1',
-            'email' => 'gate1@techconf.com',
-            'password' => Hash::make('password123'),
-            'role' => 'gateman',
-        ]);
+        $gatemen = User::factory()->gateman()->count(2)->sequence(
+            [
+                'username' => 'gateman1',
+                'email' => 'gate1@techconf.com',
+                'password' => Hash::make($defaultPassword),
+                'organization_id' => $organization->id,
+            ],
+            [
+                'username' => 'gateman2',
+                'email' => 'gate2@techconf.com',
+                'password' => Hash::make($defaultPassword),
+                'organization_id' => $organization->id,
+            ],
+        )->create();
 
-        $gateman2 = User::create([
-            'username' => 'gateman2',
-            'email' => 'gate2@techconf.com',
-            'password' => Hash::make('password123'),
-            'role' => 'gateman',
-        ]);
-
-        // Create an event
-        $event = Event::create([
+        $event = Event::factory()->active()->create([
             'organization_id' => $organization->id,
             'name' => 'Tech Summit 2026',
             'date' => now()->addDays(30),
             'location' => 'Convention Center, New York',
-            'event_secret' => Str::random(32),
-            'status' => 'active',
             'created_by' => $organizer->id,
         ]);
 
-        // Create pass types
         $passTypes = [
-            ['name' => 'VIP', 'entry_limit' => 100],
-            ['name' => 'Guest', 'entry_limit' => 500],
-            ['name' => 'Staff', 'entry_limit' => 50],
-            ['name' => 'Speaker', 'entry_limit' => 20],
+            ['name' => 'VIP', 'entry_limit' => 100, 'access_zones' => ['Main Hall', 'VIP Lounge', 'Backstage']],
+            ['name' => 'Guest', 'entry_limit' => 500, 'access_zones' => ['Main Hall', 'Expo Floor']],
+            ['name' => 'Staff', 'entry_limit' => 50, 'access_zones' => ['Main Hall', 'Backstage', 'Operations']],
+            ['name' => 'Speaker', 'entry_limit' => 20, 'access_zones' => ['Main Hall', 'Speaker Lounge', 'Backstage']],
         ];
 
         foreach ($passTypes as $passType) {
-            PassType::create([
+            PassType::factory()->create([
                 'event_id' => $event->id,
                 'name' => $passType['name'],
                 'entry_limit' => $passType['entry_limit'],
-                'access_zones' => ['Main Hall', 'VIP Lounge'],
+                'access_zones' => $passType['access_zones'],
             ]);
         }
 
-        // Create sample passes
         $vipPassType = PassType::where('event_id', $event->id)->where('name', 'VIP')->first();
-        for ($i = 0; $i < 5; $i++) {
-            $passUid = Str::random(16);
-            $signature = hash_hmac('sha256', $passUid, $event->event_secret);
+        Pass::factory()->count(5)->forEventAndType($event, $vipPassType)->sequence(
+            ...collect(range(1, 5))->map(fn (int $index) => [
+                'attendee_name' => "VIP Guest {$index}",
+                'company' => "Tech Company {$index}",
+                'metadata' => ['seed_batch' => 'vip-demo'],
+            ])->all(),
+        )->create();
 
-            Pass::create([
-                'event_id' => $event->id,
-                'pass_type_id' => $vipPassType->id,
-                'pass_uid' => $passUid,
-                'signature' => $signature,
-                'attendee_name' => "VIP Guest $i",
-                'company' => "Tech Company $i",
-                'scan_count' => 0,
-                'status' => 'active',
-            ]);
-        }
+        $approvedDevice = Device::factory()->approved($superAdmin)->create([
+            'user_id' => $gatemen->first()->id,
+            'device_fingerprint' => 'seeded-approved-gate-device',
+        ]);
 
-        $this->command->info('Database seeded with test data!');
+        Scan::factory()->create([
+            'pass_id' => $event->passes()->first()->id,
+            'device_id' => $approvedDevice->id,
+            'scan_result' => 'valid',
+            'location_zone' => 'Main Hall',
+            'metadata' => ['seed' => 'default'],
+        ]);
+
+        PassTemplate::factory()->create([
+            'event_id' => $event->id,
+            'name' => 'Default A4 Badge',
+            'file_name' => 'default-a4-badge.pdf',
+            'file_path' => 'templates/default-a4-badge.pdf',
+            'created_by' => $organizer->id,
+        ]);
+
+        SystemConfiguration::factory()->create([
+            'key' => 'mobile.seeded_package_cache',
+            'value' => ['ttl_minutes' => 15],
+            'description' => 'Default cache window for seeded mobile event package demos.',
+            'created_by' => $superAdmin->id,
+        ]);
+
+        $this->command?->info('Database seeded with default users, event data, factories, and mobile configuration.');
     }
 }

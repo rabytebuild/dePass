@@ -2,14 +2,17 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
-use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable(['event_id', 'name', 'entry_limit', 'access_zones', 'date_restrictions', 'time_restrictions'])]
 class PassType extends Model
 {
+    use HasFactory;
+
     protected $casts = [
         'access_zones' => 'json',
         'date_restrictions' => 'json',

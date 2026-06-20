@@ -2,13 +2,16 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Fillable(['pass_id', 'device_id', 'scan_result', 'scanned_at', 'location_zone', 'metadata'])]
 class Scan extends Model
 {
+    use HasFactory;
+
     protected $casts = [
         'scanned_at' => 'datetime',
         'metadata' => 'json',
