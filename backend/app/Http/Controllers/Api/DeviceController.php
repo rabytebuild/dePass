@@ -28,7 +28,7 @@ class DeviceController extends Controller
             ], 409);
         }
 
-        if (!$device) {
+        if (! $device) {
             $device = Device::create([
                 'user_id' => $user->id,
                 'uuid' => $validated['uuid'],
@@ -64,7 +64,7 @@ class DeviceController extends Controller
             ->where('user_id', $user->id)
             ->first();
 
-        if (!$device) {
+        if (! $device) {
             return response()->json([
                 'message' => 'Device is not registered for this user.',
                 'status' => 'unregistered',

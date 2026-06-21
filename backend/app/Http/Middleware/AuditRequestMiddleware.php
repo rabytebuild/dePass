@@ -16,7 +16,7 @@ class AuditRequestMiddleware
         if (config('app.audit_log_requests', false) && auth()->check()) {
             AuditLog::create([
                 'user_id' => auth()->id(),
-                'action' => $request->method() . ' ' . $request->path(),
+                'action' => $request->method().' '.$request->path(),
                 'entity_type' => 'api_request',
                 'entity_id' => null,
                 'old_data' => null,

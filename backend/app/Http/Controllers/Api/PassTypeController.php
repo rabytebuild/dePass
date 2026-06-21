@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\Event;
 use App\Models\PassType;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 
 class PassTypeController extends Controller
 {

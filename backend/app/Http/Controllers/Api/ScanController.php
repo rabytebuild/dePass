@@ -76,7 +76,7 @@ class ScanController extends Controller
 
         $pass = Pass::where('pass_uid', $validated['pass_uid'])->first();
 
-        if (!$pass) {
+        if (! $pass) {
             return response()->json([
                 'message' => 'Pass not found',
             ], 404);
@@ -86,7 +86,7 @@ class ScanController extends Controller
             ->where('status', 'approved')
             ->first();
 
-        if (!$device) {
+        if (! $device) {
             return response()->json([
                 'message' => 'Approved device not found',
             ], 404);
@@ -132,7 +132,7 @@ class ScanController extends Controller
                     ->where('status', 'approved')
                     ->first();
 
-                if (!$pass || !$device) {
+                if (! $pass || ! $device) {
                     continue;
                 }
 

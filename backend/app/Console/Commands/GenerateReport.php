@@ -19,11 +19,17 @@ class GenerateReport extends Command
     {
         $type = $this->argument('type');
 
-        return match ($type) {
-            'summary' => $this->summaryReport(),
-            'devices' => $this->devicesReport(),
-            default => $this->error("Unknown report type '{$type}'.") ?? self::FAILURE,
-        };
+        if ($type === 'summary') {
+            return $this->summaryReport();
+        }
+
+        if ($type === 'devices') {
+            return $this->devicesReport();
+        }
+
+        $this->error("Unknown report type '{$type}'.");
+
+        return self::FAILURE;
     }
 
     protected function summaryReport(): int

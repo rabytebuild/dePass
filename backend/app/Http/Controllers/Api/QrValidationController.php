@@ -32,7 +32,7 @@ class QrValidationController extends Controller
 
         $pass = Pass::where('pass_uid', $passUid)->with('event', 'passType')->first();
 
-        if (!$pass) {
+        if (! $pass) {
             return response()->json([
                 'valid' => false,
                 'message' => 'Pass not found',
@@ -46,12 +46,12 @@ class QrValidationController extends Controller
         $validResult = true;
         $message = 'Pass is valid';
 
-        if (!$signatureService->validateSignature($passUid, $signature, $pass->event->event_secret)) {
+        if (! $signatureService->validateSignature($passUid, $signature, $pass->event->event_secret)) {
             $validResult = false;
             $message = 'Invalid pass signature';
         } elseif ($pass->status !== 'active') {
             $validResult = false;
-            $message = 'Pass status is ' . $pass->status;
+            $message = 'Pass status is '.$pass->status;
         } elseif ($pass->passType && $pass->scan_count >= $pass->passType->entry_limit) {
             $validResult = false;
             $message = 'Pass entry limit reached';

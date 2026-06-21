@@ -20,7 +20,7 @@ return new class extends Migration
             $table->string('location_zone')->nullable(); // Main Hall, VIP Lounge, etc.
             $table->json('metadata')->nullable();
             $table->timestamps();
-            
+
             $table->index('pass_id');
             $table->index('device_id');
             $table->index('scanned_at');

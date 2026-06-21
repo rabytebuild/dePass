@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Organization;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class OrganizationController extends Controller
@@ -11,8 +12,7 @@ class OrganizationController extends Controller
     /**
      * Get all organizations (super_admin only).
      *
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
+     * @return JsonResponse
      */
     public function index(Request $request)
     {
@@ -32,8 +32,7 @@ class OrganizationController extends Controller
     /**
      * Create a new organization (super_admin only).
      *
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
+     * @return JsonResponse
      */
     public function store(Request $request)
     {
@@ -63,9 +62,7 @@ class OrganizationController extends Controller
     /**
      * Get a specific organization.
      *
-     * @param Organization $organization
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
+     * @return JsonResponse
      */
     public function show(Organization $organization, Request $request)
     {
@@ -75,9 +72,7 @@ class OrganizationController extends Controller
     /**
      * Update an organization.
      *
-     * @param Organization $organization
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
+     * @return JsonResponse
      */
     public function update(Organization $organization, Request $request)
     {
@@ -103,9 +98,7 @@ class OrganizationController extends Controller
     /**
      * Delete an organization (super_admin only).
      *
-     * @param Organization $organization
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
+     * @return JsonResponse
      */
     public function destroy(Organization $organization, Request $request)
     {

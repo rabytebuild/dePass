@@ -108,7 +108,7 @@ class QrWizardController extends Controller
 
             $name = $validated['attendee_name'] ?? null;
             if ($name && $validated['count'] > 1) {
-                $name = $name . ' #' . ($i + 1);
+                $name = $name.' #'.($i + 1);
             }
 
             $qrResult = $this->wizardService->generateQrData($gpid, $event->event_secret);
@@ -156,7 +156,7 @@ class QrWizardController extends Controller
 
         $zipPath = $this->wizardService->buildZip($entries, $prefix);
 
-        return response()->download($zipPath, $prefix . '_qrcodes.zip', [
+        return response()->download($zipPath, $prefix.'_qrcodes.zip', [
             'Content-Type' => 'application/zip',
         ])->deleteFileAfterSend();
     }

@@ -24,7 +24,7 @@ class AdminAuthController extends Controller
 
         $user = User::where('username', $credentials['username'])->first();
 
-        if (!$user || !Hash::check($credentials['password'], $user->password)) {
+        if (! $user || ! Hash::check($credentials['password'], $user->password)) {
             throw ValidationException::withMessages([
                 'username' => ['The provided credentials are invalid.'],
             ]);

@@ -20,7 +20,7 @@ return new class extends Migration
             $table->json('date_restrictions')->nullable(); // Date range restrictions
             $table->json('time_restrictions')->nullable(); // Time range restrictions
             $table->timestamps();
-            
+
             $table->index('event_id');
             $table->unique(['event_id', 'name']);
         });

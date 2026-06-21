@@ -2,8 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Models\Event;
 use App\Models\Device;
+use App\Models\Event;
 use App\Models\PassType;
 use App\Models\SystemConfiguration;
 use App\Models\User;

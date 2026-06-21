@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Device;
+use App\Models\Event;
+use App\Models\Pass;
 use App\Models\Scan;
 use App\Services\EventPackageService;
 use Illuminate\Http\Request;
@@ -18,7 +20,7 @@ class DeviceSyncController extends Controller
             ->with('user')
             ->first();
 
-        if (!$device) {
+        if (! $device) {
             return response()->json([
                 'message' => 'No approved device found',
             ], 404);
@@ -47,15 +49,15 @@ class DeviceSyncController extends Controller
 
         $recorded = 0;
 
-        if (!empty($validated['scans'])) {
+        if (! empty($validated['scans'])) {
             DB::transaction(function () use ($validated, &$recorded) {
                 foreach ($validated['scans'] as $payload) {
-                    $pass = \App\Models\Pass::where('pass_uid', $payload['pass_uid'])->first();
+                    $pass = Pass::where('pass_uid', $payload['pass_uid'])->first();
                     $device = Device::where('uuid', $payload['device_uuid'])
                         ->where('status', 'approved')
                         ->first();
 
-                    if (!$pass || !$device) {
+                    if (! $pass || ! $device) {
                         continue;
                     }
 
@@ -92,13 +94,13 @@ class DeviceSyncController extends Controller
             ->where('status', 'approved')
             ->first();
 
-        if (!$device) {
+        if (! $device) {
             return response()->json([
                 'message' => 'No approved device found',
             ], 404);
         }
 
-        $events = \App\Models\Event::whereHas('organization', function ($q) use ($request) {
+        $events = Event::whereHas('organization', function ($q) use ($request) {
             $q->where('id', $request->user()->organization_id);
         })->where('status', 'active')->get();
 

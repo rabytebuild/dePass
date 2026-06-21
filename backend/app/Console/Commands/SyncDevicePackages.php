@@ -21,6 +21,7 @@ class SyncDevicePackages extends Command
 
         if ($events->isEmpty()) {
             $this->warn('No events found.');
+
             return self::SUCCESS;
         }
 
@@ -31,6 +32,7 @@ class SyncDevicePackages extends Command
 
             if ($devices->isEmpty()) {
                 $this->line("No approved devices for event '{$event->name}'.");
+
                 continue;
             }
 

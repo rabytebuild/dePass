@@ -8,17 +8,16 @@ use App\Models\Event;
 use App\Models\Pass;
 use App\Models\PassTemplate;
 use App\Services\EventPackageService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
-use Illuminate\Validation\Rule;
 
 class EventController extends Controller
 {
     /**
      * Get all events (filtered by role).
      *
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
+     * @return JsonResponse
      */
     public function index(Request $request)
     {
@@ -46,12 +45,11 @@ class EventController extends Controller
     /**
      * Create a new event (organizer or super_admin).
      *
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
+     * @return JsonResponse
      */
     public function store(Request $request)
     {
-        if (!in_array($request->user()->role, ['organizer', 'super_admin'])) {
+        if (! in_array($request->user()->role, ['organizer', 'super_admin'])) {
             return response()->json([
                 'message' => 'Unauthorized',
             ], 403);
@@ -91,9 +89,7 @@ class EventController extends Controller
     /**
      * Get a specific event.
      *
-     * @param Event $event
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
+     * @return JsonResponse
      */
     public function show(Event $event, Request $request)
     {
@@ -112,9 +108,7 @@ class EventController extends Controller
     /**
      * Update an event.
      *
-     * @param Event $event
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
+     * @return JsonResponse
      */
     public function update(Event $event, Request $request)
     {
@@ -149,9 +143,7 @@ class EventController extends Controller
     /**
      * Lock an event (super_admin only).
      *
-     * @param Event $event
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
+     * @return JsonResponse
      */
     public function lock(Event $event, Request $request)
     {
@@ -172,9 +164,7 @@ class EventController extends Controller
     /**
      * Delete an event (super_admin only).
      *
-     * @param Event $event
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
+     * @return JsonResponse
      */
     public function destroy(Event $event, Request $request)
     {
@@ -263,7 +253,7 @@ class EventController extends Controller
 
         $device = $deviceQuery->first();
 
-        if (!$device) {
+        if (! $device) {
             return response()->json([
                 'message' => 'Approved device not found or not authorized',
             ], 404);

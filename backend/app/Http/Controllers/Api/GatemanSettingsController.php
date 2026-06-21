@@ -14,7 +14,7 @@ class GatemanSettingsController extends Controller
 
         $settings = SystemConfiguration::where(function ($q) use ($prefixes) {
             foreach ($prefixes as $prefix) {
-                $q->orWhere('key', 'like', $prefix . '%');
+                $q->orWhere('key', 'like', $prefix.'%');
             }
         })->get();
 
@@ -47,7 +47,7 @@ class GatemanSettingsController extends Controller
         foreach ($validated['settings'] as $key => $value) {
             $prefixedKey = $key;
 
-            if (!str_starts_with($key, 'scanner.') && !str_starts_with($key, 'gateman.')) {
+            if (! str_starts_with($key, 'scanner.') && ! str_starts_with($key, 'gateman.')) {
                 continue;
             }
 

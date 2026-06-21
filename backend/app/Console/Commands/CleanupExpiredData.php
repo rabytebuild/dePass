@@ -28,8 +28,8 @@ class CleanupExpiredData extends Command
         $this->table(
             ['Operation', 'Count'],
             [
-                ['Scans deleted (> ' . $days . ' days old)', $deletedScans],
-                ['Devices revoked (inactive > ' . $days . ' days)', $revokedDevices],
+                ['Scans deleted (> '.$days.' days old)', $deletedScans],
+                ['Devices revoked (inactive > '.$days.' days)', $revokedDevices],
             ]
         );
 
