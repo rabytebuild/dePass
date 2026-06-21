@@ -2,15 +2,15 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Event;
-use App\Models\Pass;
-use App\Models\Device;
-use App\Models\User;
-use App\Models\Organization;
-use App\Models\Scan;
-use App\Models\PassTemplate;
-use App\Models\SystemConfiguration;
 use App\Models\AuditLog;
+use App\Models\Device;
+use App\Models\Event;
+use App\Models\Organization;
+use App\Models\Pass;
+use App\Models\PassTemplate;
+use App\Models\Scan;
+use App\Models\SystemConfiguration;
+use App\Models\User;
 use Illuminate\Http\Request;
 
 class AdminController extends Controller
@@ -22,36 +22,36 @@ class AdminController extends Controller
         $stats = [
             'events' => Event::query()->when(
                 $user->role === 'organizer',
-                fn($q) => $q->where('organization_id', $user->organization_id)
+                fn ($q) => $q->where('organization_id', $user->organization_id)
             )->count(),
             'passes' => Pass::query()->when(
                 $user->role === 'organizer',
-                fn($q) => $q->whereHas('event', fn($e) => $e->where('organization_id', $user->organization_id))
+                fn ($q) => $q->whereHas('event', fn ($e) => $e->where('organization_id', $user->organization_id))
             )->count(),
             'users' => User::query()->when(
                 $user->role === 'organizer',
-                fn($q) => $q->where('organization_id', $user->organization_id)
+                fn ($q) => $q->where('organization_id', $user->organization_id)
             )->count(),
             'organizations' => Organization::count(),
             'devices_approved' => Device::where('status', 'approved')->when(
                 $user->role === 'organizer',
-                fn($q) => $q->whereHas('user', fn($u) => $u->where('organization_id', $user->organization_id))
+                fn ($q) => $q->whereHas('user', fn ($u) => $u->where('organization_id', $user->organization_id))
             )->count(),
             'devices_pending' => Device::where('status', 'pending')->when(
                 $user->role === 'organizer',
-                fn($q) => $q->whereHas('user', fn($u) => $u->where('organization_id', $user->organization_id))
+                fn ($q) => $q->whereHas('user', fn ($u) => $u->where('organization_id', $user->organization_id))
             )->count(),
             'devices_revoked' => Device::where('status', 'revoked')->when(
                 $user->role === 'organizer',
-                fn($q) => $q->whereHas('user', fn($u) => $u->where('organization_id', $user->organization_id))
+                fn ($q) => $q->whereHas('user', fn ($u) => $u->where('organization_id', $user->organization_id))
             )->count(),
             'scans' => Scan::query()->when(
                 $user->role === 'organizer',
-                fn($q) => $q->whereHas('pass', fn($p) => $p->whereHas('event', fn($e) => $e->where('organization_id', $user->organization_id)))
+                fn ($q) => $q->whereHas('pass', fn ($p) => $p->whereHas('event', fn ($e) => $e->where('organization_id', $user->organization_id)))
             )->count(),
             'templates' => PassTemplate::query()->when(
                 $user->role === 'organizer',
-                fn($q) => $q->whereHas('event', fn($e) => $e->where('organization_id', $user->organization_id))
+                fn ($q) => $q->whereHas('event', fn ($e) => $e->where('organization_id', $user->organization_id))
             )->count(),
         ];
 
@@ -64,7 +64,7 @@ class AdminController extends Controller
             ->where('status', 'pending')
             ->when(
                 $user->role === 'organizer',
-                fn($q) => $q->whereHas('user', fn($u) => $u->where('organization_id', $user->organization_id))
+                fn ($q) => $q->whereHas('user', fn ($u) => $u->where('organization_id', $user->organization_id))
             )
             ->latest()
             ->take(10)
@@ -73,7 +73,7 @@ class AdminController extends Controller
         $recentEvents = Event::with('organization', 'passTypes')
             ->when(
                 $user->role === 'organizer',
-                fn($q) => $q->where('organization_id', $user->organization_id)
+                fn ($q) => $q->where('organization_id', $user->organization_id)
             )
             ->latest()
             ->take(5)
@@ -99,7 +99,7 @@ class AdminController extends Controller
         if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('username', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%");
+                    ->orWhere('email', 'like', "%{$search}%");
             });
         }
 
@@ -136,7 +136,7 @@ class AdminController extends Controller
         $query = Device::with('user', 'approver');
 
         if ($request->user()->role === 'organizer') {
-            $query->whereHas('user', fn($q) => $q->where('organization_id', $request->user()->organization_id));
+            $query->whereHas('user', fn ($q) => $q->where('organization_id', $request->user()->organization_id));
         }
 
         $filterStatus = $request->get('status', 'all');
@@ -154,7 +154,7 @@ class AdminController extends Controller
         $query = Scan::with('pass', 'device.user');
 
         if ($request->user()->role === 'organizer') {
-            $query->whereHas('pass', fn($p) => $p->whereHas('event', fn($e) => $e->where('organization_id', $request->user()->organization_id)));
+            $query->whereHas('pass', fn ($p) => $p->whereHas('event', fn ($e) => $e->where('organization_id', $request->user()->organization_id)));
         }
 
         $result = $request->get('result', 'all');

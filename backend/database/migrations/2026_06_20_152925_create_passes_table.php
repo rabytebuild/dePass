@@ -24,7 +24,7 @@ return new class extends Migration
             $table->integer('scan_count')->default(0);
             $table->enum('status', ['active', 'used', 'revoked'])->default('active');
             $table->timestamps();
-            
+
             $table->index('event_id');
             $table->index('pass_uid');
             $table->index('pass_type_id');

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Device;
 use App\Models\User;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
@@ -14,8 +15,7 @@ class AuthController extends Controller
     /**
      * Login user and generate API token.
      *
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
+     * @return JsonResponse
      */
     public function login(Request $request)
     {
@@ -27,14 +27,14 @@ class AuthController extends Controller
 
         $user = User::where('username', $request->username)->first();
 
-        if (!$user || !Hash::check($request->password, $user->password)) {
+        if (! $user || ! Hash::check($request->password, $user->password)) {
             throw ValidationException::withMessages([
                 'username' => ['The provided credentials are invalid.'],
             ]);
         }
 
         if ($user->role !== 'super_admin') {
-            if (!$request->filled('device_uuid')) {
+            if (! $request->filled('device_uuid')) {
                 throw ValidationException::withMessages([
                     'device_uuid' => ['This device must be registered and approved before login.'],
                 ]);
@@ -45,7 +45,7 @@ class AuthController extends Controller
                 ->where('status', 'approved')
                 ->first();
 
-            if (!$approvedDevice) {
+            if (! $approvedDevice) {
                 throw ValidationException::withMessages([
                     'device_uuid' => ['This device is not approved by an admin yet.'],
                 ]);
@@ -75,8 +75,7 @@ class AuthController extends Controller
     /**
      * Logout user and revoke token.
      *
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
+     * @return JsonResponse
      */
     public function logout(Request $request)
     {
@@ -90,8 +89,7 @@ class AuthController extends Controller
     /**
      * Get current authenticated user.
      *
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
+     * @return JsonResponse
      */
     public function me(Request $request)
     {
@@ -109,8 +107,7 @@ class AuthController extends Controller
     /**
      * Refresh API token.
      *
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
+     * @return JsonResponse
      */
     public function refresh(Request $request)
     {

@@ -26,7 +26,7 @@ class EventPackageService
                 'status' => $device->status,
                 'approved_at' => $device->approved_at?->toIso8601String(),
                 'device_fingerprint' => $device->device_fingerprint,
-                'has_public_key' => !empty($device->public_key),
+                'has_public_key' => ! empty($device->public_key),
             ],
             'pass_types' => $event->passTypes()->get()->map(function ($type) {
                 return [
@@ -60,7 +60,7 @@ class EventPackageService
 
     protected function encryptPackage(string $package, Device $device): string
     {
-        if ($device->status === 'approved' && !empty($device->public_key)) {
+        if ($device->status === 'approved' && ! empty($device->public_key)) {
             return $this->encryptWithPublicKey($package, $device->public_key);
         }
 
@@ -92,7 +92,7 @@ class EventPackageService
             throw new \RuntimeException('Unable to encrypt event package payload.');
         }
 
-        if (!openssl_public_encrypt($symmetricKey, $encryptedKey, $publicKeyResource, OPENSSL_PKCS1_OAEP_PADDING)) {
+        if (! openssl_public_encrypt($symmetricKey, $encryptedKey, $publicKeyResource, OPENSSL_PKCS1_OAEP_PADDING)) {
             throw new \RuntimeException('Unable to encrypt the package key with the device public key.');
         }
 

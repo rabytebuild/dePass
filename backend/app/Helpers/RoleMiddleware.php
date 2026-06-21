@@ -2,9 +2,6 @@
 
 namespace App\Helpers;
 
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Gate;
-
 trait HasRoles
 {
     public function hasRole(string $role): bool

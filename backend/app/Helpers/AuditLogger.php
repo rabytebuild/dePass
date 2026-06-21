@@ -28,7 +28,7 @@ class AuditLogger
 
     public function logApiRequest(string $method, string $path, int $statusCode, ?string $ip = null, ?string $userAgent = null): ?AuditLog
     {
-        if (!config('app.audit_log_requests', false)) {
+        if (! config('app.audit_log_requests', false)) {
             return null;
         }
 

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
@@ -13,8 +14,7 @@ class UserController extends Controller
     /**
      * Get all users (super_admin only or organizer sees own org users).
      *
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
+     * @return JsonResponse
      */
     public function index(Request $request)
     {
@@ -35,8 +35,7 @@ class UserController extends Controller
     /**
      * Create a new user (super_admin only).
      *
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
+     * @return JsonResponse
      */
     public function store(Request $request)
     {
@@ -67,9 +66,7 @@ class UserController extends Controller
     /**
      * Get a specific user.
      *
-     * @param User $user
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
+     * @return JsonResponse
      */
     public function show(User $user, Request $request)
     {
@@ -87,9 +84,7 @@ class UserController extends Controller
     /**
      * Update a user.
      *
-     * @param User $user
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
+     * @return JsonResponse
      */
     public function update(User $user, Request $request)
     {
@@ -112,9 +107,7 @@ class UserController extends Controller
     /**
      * Soft delete a user.
      *
-     * @param User $user
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
+     * @return JsonResponse
      */
     public function destroy(User $user, Request $request)
     {

@@ -18,13 +18,15 @@ class GeneratePasses extends Command
     {
         $event = Event::find($this->argument('event'));
         if (! $event) {
-            $this->error("Event not found.");
+            $this->error('Event not found.');
+
             return self::FAILURE;
         }
 
         $passType = PassType::find($this->argument('pass-type'));
         if (! $passType) {
-            $this->error("Pass type not found.");
+            $this->error('Pass type not found.');
+
             return self::FAILURE;
         }
 

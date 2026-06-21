@@ -23,6 +23,7 @@ class InstallApp extends Command
 
         if (! $force && ! $this->confirm('Continue with installation?', true)) {
             $this->warn('Installation aborted.');
+
             return self::SUCCESS;
         }
 
@@ -83,7 +84,7 @@ class InstallApp extends Command
             if (str_contains($content, "{$key}=")) {
                 file_put_contents($path, $content);
             } else {
-                file_put_contents($path, $content . PHP_EOL . "{$key}={$value}");
+                file_put_contents($path, $content.PHP_EOL."{$key}={$value}");
             }
         }
     }

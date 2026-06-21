@@ -21,7 +21,7 @@ return new class extends Migration
             $table->enum('status', ['draft', 'active', 'locked'])->default('draft');
             $table->foreignId('created_by')->constrained('users')->onDelete('cascade');
             $table->timestamps();
-            
+
             $table->index('organization_id');
             $table->index('status');
         });

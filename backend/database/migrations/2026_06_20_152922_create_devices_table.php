@@ -21,7 +21,7 @@ return new class extends Migration
             $table->foreignId('approved_by')->nullable()->constrained('users')->onDelete('set null');
             $table->dateTime('approved_at')->nullable();
             $table->timestamps();
-            
+
             $table->index('user_id');
             $table->index('uuid');
             $table->index('status');

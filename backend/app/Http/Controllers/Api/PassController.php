@@ -132,11 +132,11 @@ class PassController extends Controller
                 ->where('event_id', $event->id)
                 ->first();
 
-            if (!$passType) {
+            if (! $passType) {
                 continue;
             }
 
-            $passUid = ($validated['prefix'] ?? '') . Str::upper(Str::random(16));
+            $passUid = ($validated['prefix'] ?? '').Str::upper(Str::random(16));
             $signature = $signatureService->generateSignature($passUid, $event->event_secret);
 
             $pass = Pass::create([
@@ -177,14 +177,14 @@ class PassController extends Controller
 
         $passes = $event->passes();
 
-        if (!empty($validated['pass_ids'])) {
+        if (! empty($validated['pass_ids'])) {
             $passes->whereIn('id', $validated['pass_ids']);
         }
 
         $passes = $passes->with('passType')->get();
         $template = null;
 
-        if (!empty($validated['template_id'])) {
+        if (! empty($validated['template_id'])) {
             $template = PassTemplate::where('id', $validated['template_id'])
                 ->where('event_id', $event->id)
                 ->first();

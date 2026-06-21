@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Models\Event;
 use App\Models\Pass;
-use App\Models\PassTemplate;
 
 class GatePassQrService
 {
@@ -12,7 +11,7 @@ class GatePassQrService
     {
         $signature = hash_hmac('sha256', $pass->pass_uid, $event->event_secret);
 
-        return 'GPX1|' . $pass->pass_uid . '|' . $signature;
+        return 'GPX1|'.$pass->pass_uid.'|'.$signature;
     }
 
     public function validateQrData(string $qrData, string $eventSecret): array
@@ -32,7 +31,7 @@ class GatePassQrService
 
         $expectedSignature = hash_hmac('sha256', $passUid, $eventSecret);
 
-        if (!hash_equals($expectedSignature, $signature)) {
+        if (! hash_equals($expectedSignature, $signature)) {
             return [
                 'pass_uid' => $passUid,
                 'valid' => false,
@@ -67,7 +66,7 @@ class GatePassQrService
 </svg>
 SVG;
 
-            return 'data:image/svg+xml;base64,' . base64_encode($svg);
+            return 'data:image/svg+xml;base64,'.base64_encode($svg);
         }
 
         return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';

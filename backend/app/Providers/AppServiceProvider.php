@@ -17,7 +17,6 @@ use App\Policies\DevicePolicy;
 use App\Policies\EventPolicy;
 use App\Policies\ScanPolicy;
 use App\Policies\UserPolicy;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 

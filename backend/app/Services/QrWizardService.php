@@ -52,6 +52,7 @@ class QrWizardService
         if ($serial === null) {
             $serial = $this->getNextSerial();
         }
+
         return sprintf('%s-%06d', $prefix, $serial);
     }
 
@@ -75,7 +76,10 @@ class QrWizardService
     public function getCurrentSerial(): int
     {
         $config = SystemConfiguration::where('key', self::COUNTER_KEY)->first();
-        if (!$config) return 0;
+        if (! $config) {
+            return 0;
+        }
+
         return (int) (is_array($config->value) ? ($config->value['serial'] ?? 0) : $config->value);
     }
 
@@ -153,13 +157,13 @@ class QrWizardService
         $coloredPng = ob_get_clean();
         imagedestroy($image);
 
-        return 'data:image/png;base64,' . base64_encode($coloredPng);
+        return 'data:image/png;base64,'.base64_encode($coloredPng);
     }
 
     public function buildZip(array $entries, string $prefix = 'qrs'): string
     {
-        $zip = new \ZipArchive();
-        $tmpFile = tempnam(sys_get_temp_dir(), 'qr_') . '.zip';
+        $zip = new \ZipArchive;
+        $tmpFile = tempnam(sys_get_temp_dir(), 'qr_').'.zip';
 
         if ($zip->open($tmpFile, \ZipArchive::CREATE) !== true) {
             throw new \RuntimeException('Failed to create ZIP archive');

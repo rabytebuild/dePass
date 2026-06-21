@@ -24,7 +24,7 @@ return new class extends Migration
             $table->boolean('has_biometric')->default(false);
             $table->rememberToken();
             $table->timestamps();
-            
+
             $table->index('role');
             $table->index('organization_id');
         });
