@@ -48,9 +48,22 @@ jobs:
           cp .env.example .env
           php artisan key:generate
           sed -i 's/DB_CONNECTION=sqlite/DB_CONNECTION=mysql/' .env
-          sed -i 's/DB_DATABASE=database\/database.sqlite/DB_DATABASE=gatepassx_test/' .env
-          sed -i 's/DB_USERNAME=.*/DB_USERNAME=gatepassx/' .env
-          sed -i 's/DB_PASSWORD=.*/DB_PASSWORD=password/' .env
+          sed -i '/^# DB_DATABASE=/a DB_DATABASE=gatepassx_test' .env
+          sed -i '/^# DB_USERNAME=/a DB_USERNAME=gatepassx' .env
+          sed -i '/^# DB_PASSWORD=/a DB_PASSWORD=password' .env
+          sed -i '/^# DB_HOST=/a DB_HOST=127.0.0.1' .env
+          sed -i '/^# DB_PORT=/a DB_PORT=3306' .env
+
+      - name: Wait for MySQL
+        run: |
+          for i in {1..30}; do
+            if mysqladmin ping -h 127.0.0.1 -u gatepassx -ppassword --silent; then
+              echo "MySQL is ready"
+              break
+            fi
+            echo "Waiting for MySQL... ($i/30)"
+            sleep 2
+          done
 
       - name: Run migrations
         run: |
