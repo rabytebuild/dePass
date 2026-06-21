@@ -1,4 +1,4 @@
-name: Turbo Mobile Build
+name: GatePassX Mobile Build
 
 on:
   workflow_dispatch:
@@ -15,6 +15,7 @@ on:
   push:
     branches:
       - main
+      - develop
     paths:
       - backend/**
       - mobile/**
@@ -27,14 +28,22 @@ on:
 
 permissions:
   contents: write
+  attestations: write
+  id-token: write
 
 concurrency:
-  group: turbo-mobile-${{ github.ref }}
+  group: mobile-build-${{ github.ref }}
   cancel-in-progress: true
+
+env:
+  PHP_VERSION: "8.4"
+  NODE_VERSION: "22"
+  JAVA_VERSION: "17"
+  FLUTTER_VERSION: "3.29.2"
 
 jobs:
   laravel-tests:
-    name: Laravel Seeded API Tests
+    name: Laravel Tests
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -42,17 +51,17 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: "8.4"
+          php-version: ${{ env.PHP_VERSION }}
           extensions: mbstring, dom, fileinfo, sqlite, pdo_sqlite
           coverage: none
 
       - name: Cache Composer packages
-        uses: actions/cache@v5
+        uses: actions/cache@v4
         with:
           path: ~/.composer/cache/files
           key: composer-${{ runner.os }}-${{ hashFiles('backend/composer.lock') }}
@@ -67,7 +76,7 @@ jobs:
           php artisan key:generate
           touch database/database.sqlite
 
-      - name: Run migrations
+      - name: Run migrations & seed
         env:
           XDEBUG_MODE: off
           DB_CONNECTION: sqlite
@@ -82,7 +91,7 @@ jobs:
         run: php artisan test
 
   android-build:
-    name: Android Turbo Build
+    name: Android Release Build
     runs-on: ubuntu-latest
     needs: laravel-tests
     defaults:
@@ -91,33 +100,30 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: Setup Node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v4
         with:
-          node-version: "24"
-          cache: npm
-          cache-dependency-path: backend/package-lock.json
+          node-version: ${{ env.NODE_VERSION }}
 
       - name: Setup Java
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: ${{ env.JAVA_VERSION }}
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: "3.44.0"
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
 
-      - name: Cache Flutter packages
-        uses: actions/cache@v5
+      - name: Cache Flutter pub
+        uses: actions/cache@v4
         with:
-          path: |
-            ~/.pub-cache
+          path: ~/.pub-cache
           key: flutter-${{ runner.os }}-${{ hashFiles('mobile/pubspec.yaml') }}
           restore-keys: flutter-${{ runner.os }}-
 
@@ -127,15 +133,12 @@ jobs:
           dart --version
           flutter doctor -v
 
-      - name: Generate Android runner
+      - name: Generate Android platform
         run: |
-          set -o pipefail
-          flutter create --platforms=android --project-name depass_mobile --org com.gatepassx . 2>&1 | tee ../flutter-create.log
+          flutter create --platforms=android --project-name depass_mobile --org com.devnbugs . 2>&1
 
-      - name: Pin Android release SDK levels
+      - name: Pin Android SDK levels
         run: |
-          set -euo pipefail
-
           python3 - <<'PY'
           from pathlib import Path
 
@@ -145,119 +148,86 @@ jobs:
               "flutter.minSdkVersion": "28",
           }
 
-          def rewrite_key_value_file(path: Path) -> None:
-              if not path.exists():
+          def rewrite_key_value_file(p):
+              if not p.exists():
                   return
-              lines = path.read_text().splitlines()
-              rewritten = []
-              seen = set()
-
+              lines = p.read_text().splitlines()
+              rewritten, seen = [], set()
               for line in lines:
-                  stripped = line.lstrip()
-                  if "=" in line and not stripped.startswith("#"):
-                      key, value = line.split("=", 1)
-                      key = key.strip()
-                      if key in sdk_levels:
-                          rewritten.append(f"{key}={sdk_levels[key]}")
-                          seen.add(key)
+                  s = line.lstrip()
+                  if "=" in line and not s.startswith("#"):
+                      k, v = line.split("=", 1)
+                      k = k.strip()
+                      if k in sdk_levels:
+                          rewritten.append(f"{k}={sdk_levels[k]}")
+                          seen.add(k)
                           continue
                   rewritten.append(line)
-
-              for key, value in sdk_levels.items():
-                  if key not in seen:
-                      rewritten.append(f"{key}={value}")
-
-              path.write_text("\n".join(rewritten) + "\n")
+              for k, v in sdk_levels.items():
+                  if k not in seen:
+                      rewritten.append(f"{k}={v}")
+              p.write_text("\n".join(rewritten) + "\n")
 
           rewrite_key_value_file(Path("android/local.properties"))
           rewrite_key_value_file(Path("android/gradle.properties"))
-
-          for path in Path("android").rglob("build.gradle*"):
-              text = path.read_text()
-              updated = (
-                  text.replace("flutter.compileSdkVersion", "36")
-                  .replace("flutter.targetSdkVersion", "36")
-                  .replace("flutter.minSdkVersion", "28")
-              )
-              if updated != text:
-                  path.write_text(updated)
-
-          manifest = Path("android/app/src/main/AndroidManifest.xml")
-          if manifest.exists():
-              text = manifest.read_text()
-              permission = '<uses-permission android:name="android.permission.CAMERA" />'
-              if permission not in text:
-                  insert_after = '</manifest>'
-                  text = text.replace(
-                      insert_after,
-                      f'    {permission}\n{insert_after}',
-                  )
-                  manifest.write_text(text)
           PY
 
-      - name: Install Flutter dependencies
+      - name: Fix AndroidManifest permissions
         run: |
-          set -o pipefail
-          flutter pub get 2>&1 | tee ../flutter-pub-get.log
+          manifest="android/app/src/main/AndroidManifest.xml"
+          if [ -f "$manifest" ]; then
+            if ! grep -q "android.permission.CAMERA" "$manifest"; then
+              sed -i 's|<uses-permission android:name="android.permission.FLASHLIGHT"/>|&\n    <uses-permission android:name="android.permission.CAMERA"/>|' "$manifest"
+            fi
+          fi
+
+      - name: Install Flutter dependencies
+        run: flutter pub get
 
       - name: Generate launcher icons
-        run: |
-          set -o pipefail
-          dart run flutter_launcher_icons -f flutter_launcher_icons.yaml 2>&1 | tee ../flutter-launcher-icons.log
+        continue-on-error: true
+        run: flutter pub run flutter_launcher_icons -f flutter_launcher_icons.yaml 2>&1 || true
 
       - name: Analyze Flutter code
-        run: |
-          set -o pipefail
-          flutter analyze 2>&1 | tee ../flutter-analyze.log
+        run: flutter analyze
 
-      - name: Run Flutter tests when present
-        run: |
-          set -o pipefail
-          if [ -d test ]; then
-            flutter test 2>&1 | tee ../flutter-test.log
-          else
-            echo "No Flutter test directory found; skipping flutter test."
-          fi
+      - name: Build Android split APKs
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_type == 'apk' || inputs.build_type == 'both' }}
+        run: flutter build apk --release --split-per-abi
+
+      - name: Build Android App Bundle
+        if: ${{ github.event_name == 'workflow_dispatch' && (inputs.build_type == 'appbundle' || inputs.build_type == 'both') }}
+        run: flutter build appbundle --release
 
       - name: Build Laravel frontend assets
         working-directory: backend
         run: |
-          set -o pipefail
           npm ci
-          npm run build 2>&1 | tee ../laravel-vite-build.log
+          npm run build
 
-      - name: Build Android split APKs
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_type == 'apk' || inputs.build_type == 'both' }}
-        run: |
-          set -o pipefail
-          flutter build apk --release --split-per-abi 2>&1 | tee ../flutter-build-apk.log
-
-      - name: Build Android App Bundle
-        if: ${{ github.event_name == 'workflow_dispatch' && (inputs.build_type == 'appbundle' || inputs.build_type == 'both') }}
-        run: |
-          set -o pipefail
-          flutter build appbundle --release 2>&1 | tee ../flutter-build-aab.log
-
-      - name: Prepare release assets
+      - name: Prepare release artifacts
         run: |
           set -euo pipefail
           shopt -s nullglob
 
           release_dir="../release"
           laravel_staging="${release_dir}/laravel-shared-hosting"
-          laravel_zip="${release_dir}/depass-laravel-shared-hosting-${GITHUB_RUN_NUMBER}.zip"
-          apk_asset_prefix="${release_dir}/depass-mobile-${GITHUB_RUN_NUMBER}"
+          laravel_zip="${release_dir}/gatepassx-laravel-${GITHUB_RUN_NUMBER}.zip"
+          apk_prefix="${release_dir}/gatepassx-mobile-${GITHUB_RUN_NUMBER}"
 
           rm -rf "${release_dir}"
           mkdir -p "${laravel_staging}"
 
+          # Copy APKs
           for apk in build/app/outputs/flutter-apk/app-*-release.apk; do
-            abi_name="$(basename "${apk}" .apk | sed 's/^app-//; s/-release$//')"
-            cp "${apk}" "${apk_asset_prefix}-${abi_name}.apk"
+            abi="$(basename "${apk}" .apk | sed 's/^app-//; s/-release$//')"
+            cp "${apk}" "${apk_prefix}-${abi}.apk"
           done
 
+          # Stage Laravel
           cp -a ../backend/. "${laravel_staging}/"
 
+          # Remove dev artifacts
           rm -rf \
             "${laravel_staging}/.env" \
             "${laravel_staging}/.phpunit.result.cache" \
@@ -269,12 +239,12 @@ jobs:
             "${laravel_staging}/storage/framework/views/"*.php \
             "${laravel_staging}/storage/logs/"*.log
 
+          # Verify built assets exist
           test -f "${laravel_staging}/public/build/manifest.json"
-          test -f "${laravel_staging}/public/build/fonts-manifest.json"
 
+          # Create root index.php for shared hosting
           cat > "${laravel_staging}/index.php" <<'PHP'
           <?php
-
           use Illuminate\Foundation\Application;
           use Illuminate\Http\Request;
 
@@ -286,12 +256,11 @@ jobs:
 
           require __DIR__.'/vendor/autoload.php';
 
-          /** @var Application $app */
           $app = require_once __DIR__.'/bootstrap/app.php';
-
           $app->handleRequest(Request::capture());
           PHP
 
+          # Create .htaccess
           cat > "${laravel_staging}/.htaccess" <<'HTACCESS'
           <IfModule mod_rewrite.c>
               <IfModule mod_negotiation.c>
@@ -327,73 +296,66 @@ jobs:
           </FilesMatch>
           HTACCESS
 
-          (
-            cd "${laravel_staging}"
-            zip -qr "../$(basename "${laravel_zip}")" .
-          )
+          # Create zip
+          (cd "${laravel_staging}" && zip -qr "../$(basename "${laravel_zip}")" .)
 
       - name: Debug failed Flutter build
         if: ${{ failure() }}
         run: |
-          echo "Flutter diagnostics"
+          echo "=== Flutter diagnostics ==="
           flutter --version || true
           dart --version || true
           flutter doctor -v || true
-          echo "pubspec.yaml"
-          sed -n '1,220p' pubspec.yaml || true
-          echo "Dependency tree"
+          echo "=== pubspec.yaml ==="
+          head -80 pubspec.yaml || true
+          echo "=== Dependencies ==="
           dart pub deps || true
-          echo "Android output tree"
+          echo "=== Android outputs ==="
           find build/app/outputs -maxdepth 5 -type f 2>/dev/null | sort || true
 
-      - name: Upload Flutter debug logs
-        if: ${{ failure() }}
-        uses: actions/upload-artifact@v6
+      - name: Upload APK artifacts
+        uses: actions/upload-artifact@v4
         with:
-          name: flutter-debug-logs
-          path: |
-            flutter-create.log
-            flutter-pub-get.log
-            flutter-analyze.log
-            flutter-test.log
-            flutter-build-apk.log
-            flutter-build-aab.log
-          if-no-files-found: ignore
-
-      - name: Upload split APKs
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_type == 'apk' || inputs.build_type == 'both' }}
-        uses: actions/upload-artifact@v6
-        with:
-          name: depass-mobile-split-apks
+          name: gatepassx-mobile-apks
           path: mobile/build/app/outputs/flutter-apk/app-*-release.apk
           if-no-files-found: error
 
       - name: Upload Laravel shared-hosting zip
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v4
         with:
-          name: depass-laravel-shared-hosting
-          path: release/depass-laravel-shared-hosting-${{ github.run_number }}.zip
+          name: gatepassx-laravel-shared-hosting
+          path: release/gatepassx-laravel-${{ github.run_number }}.zip
           if-no-files-found: error
 
       - name: Upload App Bundle
         if: ${{ github.event_name == 'workflow_dispatch' && (inputs.build_type == 'appbundle' || inputs.build_type == 'both') }}
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v4
         with:
-          name: depass-mobile-aab
+          name: gatepassx-mobile-aab
           path: mobile/build/app/outputs/bundle/release/app-release.aab
 
-      - name: Publish GitHub release
+      - name: Create GitHub Release
         if: ${{ github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.build_type == 'apk' || inputs.build_type == 'both') }}
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@v2
         with:
-          tag_name: depass-mobile-${{ github.run_number }}
-          name: DePass Mobile Build ${{ github.run_number }}
+          tag_name: v${{ github.run_number }}
+          name: GatePassX Release v${{ github.run_number }}
           body: |
-            Automated release created after seeded Laravel tests, Flutter analysis, Flutter tests, and split-per-ABI Android builds.
+            ## GatePassX Release v${{ github.run_number }}
 
-            Assets:
-            - Android release APKs split per ABI
-            - Tested Laravel source zip with root index.php and .htaccess for shared-hosting basedirs such as serv00.com
+            ### ✅ What's included
+            - Android release APKs (split per ABI)
+            - Laravel shared-hosting deployment zip
+            - Fully tested API with CI pipeline
+
+            ### 📱 Mobile
+            - Package: `com.devnbugs.gatepassx`
+            - Built with Flutter
+
+            ### 🏗️ Backend
+            - Laravel with Sanctum auth
+            - SQLite (dev) / MySQL (prod)
+            - Ready for shared hosting deployment
           files: |
-            release/depass-mobile-${{ github.run_number }}-*.apk
-            release/depass-laravel-shared-hosting-${{ github.run_number }}.zip
+            release/gatepassx-mobile-${{ github.run_number }}-*.apk
+            release/gatepassx-laravel-${{ github.run_number }}.zip

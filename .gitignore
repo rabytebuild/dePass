@@ -13,3 +13,4 @@
 # Local Laravel state
 /backend/.phpunit.result.cache
 /backend/database/database.sqlite
+android/app/gatepassx.keystore

@@ -104,18 +104,30 @@ class PassController extends Controller
     {
         $this->authorize('update', $event);
 
-        $validated = $request->validate([
-            'passes' => ['required', 'array', 'min:1'],
-            'passes.*.pass_type_id' => ['required', 'exists:pass_types,id'],
-            'passes.*.attendee_name' => ['nullable', 'string'],
-            'passes.*.company' => ['nullable', 'string'],
-            'passes.*.phone' => ['nullable', 'string'],
-            'passes.*.metadata' => ['nullable', 'array'],
-        ]);
+        if ($request->has('passes')) {
+            $validated = $request->validate([
+                'passes' => ['required', 'array', 'min:1'],
+                'passes.*.pass_type_id' => ['required', 'exists:pass_types,id'],
+                'passes.*.attendee_name' => ['nullable', 'string'],
+                'passes.*.company' => ['nullable', 'string'],
+                'passes.*.phone' => ['nullable', 'string'],
+                'passes.*.metadata' => ['nullable', 'array'],
+            ]);
+            $inputPasses = $validated['passes'];
+        } else {
+            $validated = $request->validate([
+                'count' => ['required', 'integer', 'min:1', 'max:1000'],
+                'pass_type_id' => ['required', 'exists:pass_types,id'],
+                'prefix' => ['nullable', 'string', 'max:20'],
+            ]);
+            $inputPasses = array_fill(0, $validated['count'], [
+                'pass_type_id' => $validated['pass_type_id'],
+            ]);
+        }
 
         $results = [];
 
-        foreach ($validated['passes'] as $payload) {
+        foreach ($inputPasses as $payload) {
             $passType = PassType::where('id', $payload['pass_type_id'])
                 ->where('event_id', $event->id)
                 ->first();
@@ -124,7 +136,7 @@ class PassController extends Controller
                 continue;
             }
 
-            $passUid = Str::upper(Str::random(16));
+            $passUid = ($validated['prefix'] ?? '') . Str::upper(Str::random(16));
             $signature = $signatureService->generateSignature($passUid, $event->event_secret);
 
             $pass = Pass::create([
@@ -150,7 +162,7 @@ class PassController extends Controller
             'message' => 'Bulk pass generation completed',
             'generated_count' => count($results),
             'results' => $results,
-        ]);
+        ], 201);
     }
 
     public function printManifest(Event $event, Request $request, PrintPassService $printPassService)

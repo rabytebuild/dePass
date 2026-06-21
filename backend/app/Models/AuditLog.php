@@ -15,6 +15,7 @@ class AuditLog extends Model
     protected $casts = [
         'old_data' => 'json',
         'new_data' => 'json',
+        'created_at' => 'datetime',
     ];
 
     public $timestamps = false;

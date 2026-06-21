@@ -55,7 +55,7 @@ class UserController extends Controller
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
             'role' => $validated['role'],
-            'organization_id' => $validated['organization_id'],
+            'organization_id' => $validated['organization_id'] ?? null,
         ]);
 
         return response()->json([
