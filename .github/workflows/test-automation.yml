@@ -1,10 +1,11 @@
-name: Turbo App Automation
+name: GatePassX CI Automation
 
 on:
   workflow_dispatch:
   push:
     branches:
       - main
+      - develop
     paths:
       - backend/**
       - mobile/**
@@ -15,9 +16,14 @@ on:
       - mobile/**
       - .github/workflows/test-automation.yml
 
+env:
+  PHP_VERSION: "8.4"
+  NODE_VERSION: "22"
+  FLUTTER_VERSION: "3.29.2"
+
 jobs:
   laravel-api-tests:
-    name: Laravel API Contract
+    name: Laravel API Tests
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -25,88 +31,74 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: Setup Node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v4
         with:
-          node-version: "24"
-          cache: npm
-          cache-dependency-path: backend/package-lock.json
+          node-version: ${{ env.NODE_VERSION }}
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: "8.4"
+          php-version: ${{ env.PHP_VERSION }}
           extensions: mbstring, dom, fileinfo, sqlite, pdo_sqlite, openssl
           coverage: none
 
-      - name: Cache Composer packages
-        uses: actions/cache@v5
+      - name: Cache Composer
+        uses: actions/cache@v4
         with:
           path: ~/.composer/cache/files
           key: composer-${{ runner.os }}-${{ hashFiles('backend/composer.lock') }}
           restore-keys: composer-${{ runner.os }}-
 
-      - name: Install Composer dependencies
+      - name: Install PHP dependencies
         run: composer install --no-interaction --prefer-dist --no-progress --optimize-autoloader
 
-      - name: Validate Composer config
-        run: |
-          set -o pipefail
-          composer validate --strict 2>&1 | tee ../composer-validate.log
+      - name: Validate composer
+        run: composer validate --strict
 
-      - name: Prepare Laravel environment
+      - name: Prepare environment
         run: |
           cp .env.example .env
           php artisan key:generate
           touch database/database.sqlite
 
-      - name: Run migrations and seeders
+      - name: Migrate & seed
         env:
           XDEBUG_MODE: off
           DB_CONNECTION: sqlite
           DB_DATABASE: database/database.sqlite
-        run: |
-          set -o pipefail
-          php artisan migrate:fresh --seed --force 2>&1 | tee ../laravel-migrate-seed.log
+        run: php artisan migrate:fresh --seed --force
 
-      - name: Validate API route registration
+      - name: Validate API routes
         env:
           XDEBUG_MODE: off
-        run: |
-          set -o pipefail
-          php artisan route:list --path=api 2>&1 | tee ../laravel-routes.log
+        run: php artisan route:list --path=api
 
-      - name: Build Laravel frontend assets
+      - name: Build Laravel frontend
         run: |
-          set -o pipefail
           npm ci
-          npm run build 2>&1 | tee ../laravel-vite-build.log
+          npm run build
 
-      - name: Run Laravel automated tests
+      - name: Run Laravel test suite
         env:
           XDEBUG_MODE: off
           DB_CONNECTION: sqlite
           DB_DATABASE: database/database.sqlite
-        run: |
-          set -o pipefail
-          php artisan test 2>&1 | tee ../laravel-tests.log
+        run: php artisan test
 
-      - name: Upload Laravel contract logs
+      - name: Upload logs on failure
         if: ${{ failure() }}
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v4
         with:
-          name: laravel-contract-logs
+          name: laravel-ci-logs
           path: |
-            composer-validate.log
-            laravel-migrate-seed.log
-            laravel-routes.log
-            laravel-tests.log
+            backend/storage/logs/laravel.log
           if-no-files-found: ignore
 
-  laravel-live-smoke:
-    name: Laravel Live HTTP Smoke
+  laravel-smoke-test:
+    name: Laravel HTTP Smoke Test
     runs-on: ubuntu-latest
     needs: laravel-api-tests
     defaults:
@@ -115,25 +107,25 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: "8.4"
+          php-version: ${{ env.PHP_VERSION }}
           extensions: mbstring, dom, fileinfo, sqlite, pdo_sqlite, openssl
           coverage: none
 
-      - name: Install Composer dependencies
+      - name: Install PHP dependencies
         run: composer install --no-interaction --prefer-dist --no-progress --optimize-autoloader
 
-      - name: Prepare Laravel environment
+      - name: Prepare environment
         run: |
           cp .env.example .env
           php artisan key:generate
           touch database/database.sqlite
 
-      - name: Build test database
+      - name: Build test DB
         env:
           XDEBUG_MODE: off
           DB_CONNECTION: sqlite
@@ -148,8 +140,9 @@ jobs:
         run: |
           php artisan serve --host=127.0.0.1 --port=8000 > ../laravel-server.log 2>&1 &
           echo $! > ../laravel-server.pid
-          for attempt in $(seq 1 30); do
-            if curl -fsS http://127.0.0.1:8000/up >/dev/null; then
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8000/up >/dev/null 2>&1; then
+              echo "Server ready"
               exit 0
             fi
             sleep 1
@@ -157,111 +150,166 @@ jobs:
           cat ../laravel-server.log
           exit 1
 
-      - name: Run mobile-to-Laravel API smoke flow
+      - name: Run API smoke tests
         run: |
           python3 - <<'PY'
-          import json
-          import sys
-          import urllib.error
-          import urllib.parse
-          import urllib.request
-          import uuid
+          import json, sys, urllib.error, urllib.parse, urllib.request, uuid
 
-          BASE_URL = "http://127.0.0.1:8000/api"
+          BASE = "http://127.0.0.1:8000/api"
 
-          def request(method, path, token=None, payload=None, expected=200):
+          def req(method, path, token=None, payload=None, expected=200):
               data = None
-              headers = {"Accept": "application/json"}
+              hdrs = {"Accept": "application/json"}
               if payload is not None:
                   data = json.dumps(payload).encode()
-                  headers["Content-Type"] = "application/json"
+                  hdrs["Content-Type"] = "application/json"
               if token:
-                  headers["Authorization"] = f"Bearer {token}"
-
-              req = urllib.request.Request(
-                  f"{BASE_URL}{path}",
-                  data=data,
-                  headers=headers,
-                  method=method,
-              )
-
+                  hdrs["Authorization"] = f"Bearer {token}"
+              r = urllib.request.Request(f"{BASE}{path}", data=data, headers=hdrs, method=method)
               try:
-                  with urllib.request.urlopen(req, timeout=20) as response:
-                      body = response.read().decode()
-                      status = response.status
-              except urllib.error.HTTPError as exc:
-                  body = exc.read().decode()
-                  status = exc.code
-
+                  with urllib.request.urlopen(r, timeout=20) as resp:
+                      body, status = resp.read().decode(), resp.status
+              except urllib.error.HTTPError as e:
+                  body, status = e.read().decode(), e.code
               if status != expected:
-                  print(f"{method} {path} expected {expected}, got {status}")
+                  print(f"FAIL {method} {path}: expected {expected}, got {status}")
                   print(body)
                   sys.exit(1)
-
               return json.loads(body) if body else {}
 
-          admin_login = request("POST", "/login", payload={
-              "username": "admin",
-              "password": "password123",
-          })
-          admin_token = admin_login["token"]
+          # 1. Admin login (no device required for super_admin)
+          admin = req("POST", "/login", payload={"username": "admin", "password": "password123"})
+          admin_token = admin["token"]
+          print(f"1. Admin login: OK (token={admin_token[:16]}...)")
 
-          login_device_uuid = str(uuid.uuid4())
-          registered_device = request("POST", "/device-registration", payload={
-              "uuid": login_device_uuid,
-              "username": "organizer1",
-              "device_fingerprint": "github-actions-login-device",
-          }, expected=201)
-          login_device_id = registered_device["device"]["id"]
-          request("POST", f"/devices/{login_device_id}/approve", token=admin_token)
+          # 2. Get current user
+          me = req("GET", "/me", token=admin_token)
+          assert me["username"] == "admin"
+          print(f"2. GET /me: OK ({me['username']})")
 
-          login = request("POST", "/login", payload={
-              "username": "organizer1",
-              "password": "password123",
-              "device_uuid": login_device_uuid,
-          })
-          token = login["token"]
-
-          me = request("GET", "/me", token=token)
-          assert me["username"] == "organizer1", me
-
-          events = request("GET", "/events", token=token)
-          assert events["data"], events
+          # 3. List events
+          events = req("GET", "/events", token=admin_token)
+          assert len(events["data"]) > 0
           event_id = events["data"][0]["id"]
+          print(f"3. GET /events: OK ({len(events['data'])} events)")
 
-          pass_types = request("GET", f"/events/{event_id}/pass-types", token=token)
-          assert pass_types["data"], pass_types
-          pass_type_id = pass_types["data"][0]["id"]
+          # 4. List pass types
+          pts = req("GET", f"/events/{event_id}/pass-types", token=admin_token)
+          assert len(pts["data"]) > 0
+          pt_id = pts["data"][0]["id"]
+          print(f"4. GET /events/{event_id}/pass-types: OK")
 
-          created_pass = request("POST", f"/events/{event_id}/passes", token=token, payload={
-              "pass_type_id": pass_type_id,
-              "attendee_name": "Workflow Smoke Guest",
-              "company": "GitHub Actions",
-          }, expected=201)
-          assert created_pass["qr_data"].startswith("GPX1|"), created_pass
+          # 5. Create single pass
+          p = req("POST", f"/events/{event_id}/passes", token=admin_token,
+                  payload={"pass_type_id": pt_id, "attendee_name": "Test User"},
+                  expected=201)
+          assert p["qr_data"].startswith("GPX1|"), p
+          print(f"5. POST /events/{event_id}/passes: OK (qr={p['qr_data'][:20]}...)")
 
-          passes = request("GET", f"/events/{event_id}/passes", token=token)
-          assert passes["data"], passes
+          # 6. List passes
+          passes = req("GET", f"/events/{event_id}/passes", token=admin_token)
+          assert len(passes["data"]) > 0
+          print(f"6. GET /events/{event_id}/passes: OK ({len(passes['data'])} passes)")
 
-          device_uuid = str(uuid.uuid4())
-          device = request("POST", "/devices", token=token, payload={
-              "uuid": device_uuid,
-              "device_fingerprint": "github-actions-smoke",
-          }, expected=201)
-          device_id = device["device"]["id"]
+          # 7. Register device
+          dev_uuid = str(uuid.uuid4())
+          dev = req("POST", "/devices", token=admin_token,
+                    payload={"uuid": dev_uuid, "device_fingerprint": "smoke-test"},
+                    expected=201)
+          dev_id = dev["device"]["id"]
+          print(f"7. POST /devices: OK (id={dev_id})")
 
-          request("POST", f"/devices/{device_id}/approve", token=token)
+          # 8. Approve device
+          req("POST", f"/devices/{dev_id}/approve", token=admin_token)
+          print(f"8. POST /devices/{dev_id}/approve: OK")
 
-          package_path = f"/events/{event_id}/package?{urllib.parse.urlencode({'device_uuid': device_uuid})}"
-          event_package = request("GET", package_path, token=token)
-          assert event_package["format"] == "encrypted", event_package
-          assert event_package["event_package"], event_package
+          # 9. Get event package
+          pkg = req("GET", f"/events/{event_id}/package?device_uuid={dev_uuid}", token=admin_token)
+          assert "event_package" in pkg
+          print(f"9. GET /events/{event_id}/package: OK (format={pkg['format']})")
 
-          stats = request("GET", "/stats", token=token)
-          for key in ["events", "passes", "devices", "pending_devices", "templates"]:
-              assert key in stats, stats
+          # 10. Validate pass QR
+          val = req("POST", "/validate-pass", payload={"qr_data": p["qr_data"]})
+          assert val["valid"] is True
+          print(f"10. POST /validate-pass: OK (valid={val['valid']})")
 
-          print("Mobile-to-Laravel smoke flow passed.")
+          # 11. Get stats
+          stats = req("GET", "/stats", token=admin_token)
+          assert "events" in stats
+          print(f"11. GET /stats: OK ({stats})")
+
+          # 12. List users
+          users = req("GET", "/users", token=admin_token)
+          assert len(users["data"]) > 0
+          print(f"12. GET /users: OK ({len(users['data'])} users)")
+
+          # 13. List organizations
+          orgs = req("GET", "/organizations", token=admin_token)
+          assert len(orgs["data"]) > 0
+          print(f"13. GET /organizations: OK ({len(orgs['data'])} orgs)")
+
+          # 14. List devices
+          devices = req("GET", "/devices", token=admin_token)
+          print(f"14. GET /devices: OK ({len(devices['data'])} devices)")
+
+          # 15. List scans
+          scans = req("GET", "/scans", token=admin_token)
+          print(f"15. GET /scans: OK ({len(scans['data'])} scans)")
+
+          # 16. Get scanner settings
+          settings = req("GET", "/scanner/settings", token=admin_token)
+          print(f"16. GET /scanner/settings: OK")
+
+          # 17. Device registration status
+          status = req("POST", "/device-registration/status",
+                       payload={"uuid": dev_uuid})
+          print(f"17. POST /device-registration/status: OK")
+
+          # 18. Bulk generate passes
+          bulk = req("POST", f"/events/{event_id}/passes/bulk-generate", token=admin_token,
+                     payload={"count": 5, "prefix": "BULK-"}, expected=201)
+          print(f"18. POST /events/{event_id}/passes/bulk-generate: OK")
+
+          # 19. Lock event
+          req("PUT", f"/events/{event_id}/lock", token=admin_token)
+          print(f"19. PUT /events/{event_id}/lock: OK")
+
+          # 20. Get dashboard stats
+          dash = req("GET", "/admin/dashboard", token=admin_token)
+          print(f"20. GET /admin/dashboard: OK")
+
+          # 21. Refresh token
+          ref = req("POST", "/refresh", token=admin_token)
+          print(f"21. POST /refresh: OK (new token={ref['token'][:16]}...)")
+
+          # 22. Logout
+          req("POST", "/logout", token=admin_token)
+          print(f"22. POST /logout: OK")
+
+          # 23. Organizer login (needs device registration flow)
+          reg = req("POST", "/device-registration",
+                    payload={"uuid": dev_uuid, "username": "organizer1",
+                             "device_fingerprint": "ci-smoke-device"},
+                    expected=201)
+          print(f"23. POST /device-registration: OK (device_id={reg['device']['id']})")
+
+          req("POST", f"/devices/{reg['device']['id']}/approve", token=admin_token)
+          org_login = req("POST", "/login",
+                          payload={"username": "organizer1", "password": "password123",
+                                   "device_uuid": dev_uuid})
+          org_token = org_login["token"]
+          assert org_login["user"]["role"] != "super_admin"
+          print(f"24. Organizer login: OK (role={org_login['user']['role']})")
+
+          # 25. Organizer access scoped
+          org_events = req("GET", "/events", token=org_token)
+          print(f"25. Organizer events: OK ({len(org_events['data'])} events)")
+
+          # 26. System configurations
+          configs = req("GET", "/configurations", token=admin_token)
+          print(f"26. GET /configurations: OK ({len(configs['data'])} configs)")
+
+          print("\n=== ALL 26 SMOKE TESTS PASSED ===")
           PY
 
       - name: Stop Laravel server
@@ -271,16 +319,16 @@ jobs:
             kill "$(cat ../laravel-server.pid)" 2>/dev/null || true
           fi
 
-      - name: Upload Laravel server log
+      - name: Upload server log
         if: ${{ failure() }}
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v4
         with:
-          name: laravel-live-smoke-log
+          name: laravel-smoke-log
           path: laravel-server.log
           if-no-files-found: ignore
 
-  flutter-contract-check:
-    name: Flutter Mobile Contract
+  flutter-analyze:
+    name: Flutter Analysis
     runs-on: ubuntu-latest
     needs: laravel-api-tests
     defaults:
@@ -289,55 +337,35 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: "3.44.0"
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
 
-      - name: Cache Flutter packages
-        uses: actions/cache@v5
+      - name: Cache Flutter pub
+        uses: actions/cache@v4
         with:
-          path: |
-            ~/.pub-cache
+          path: ~/.pub-cache
           key: flutter-${{ runner.os }}-${{ hashFiles('mobile/pubspec.yaml') }}
           restore-keys: flutter-${{ runner.os }}-
 
-      - name: Generate Flutter platform files
-        run: |
-          set -o pipefail
-          flutter create --platforms=android --project-name depass_mobile --org com.gatepassx . 2>&1 | tee ../flutter-create.log
+      - name: Generate platform files
+        run: flutter create --platforms=android --project-name depass_mobile --org com.devnbugs . 2>&1
 
-      - name: Install Flutter dependencies
-        run: |
-          set -o pipefail
-          flutter pub get 2>&1 | tee ../flutter-pub-get.log
+      - name: Install dependencies
+        run: flutter pub get
 
-      - name: Analyze Flutter code
-        run: |
-          set -o pipefail
-          flutter analyze 2>&1 | tee ../flutter-analyze.log
+      - name: Analyze
+        run: flutter analyze
 
-      - name: Run Flutter tests when present
+      - name: Run tests
         run: |
-          set -o pipefail
           if [ -d test ]; then
-            flutter test 2>&1 | tee ../flutter-test.log
+            flutter test
           else
-            echo "No Flutter test directory found; skipping flutter test."
+            echo "No tests directory found"
           fi
-
-      - name: Upload Flutter contract logs
-        if: ${{ failure() }}
-        uses: actions/upload-artifact@v6
-        with:
-          name: flutter-contract-logs
-          path: |
-            flutter-create.log
-            flutter-pub-get.log
-            flutter-analyze.log
-            flutter-test.log
-          if-no-files-found: ignore

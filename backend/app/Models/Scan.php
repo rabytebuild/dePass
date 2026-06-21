@@ -6,11 +6,12 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 #[Fillable(['pass_id', 'device_id', 'scan_result', 'scanned_at', 'location_zone', 'metadata'])]
 class Scan extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $casts = [
         'scanned_at' => 'datetime',

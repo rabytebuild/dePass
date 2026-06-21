@@ -5,7 +5,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 
-const _baseUrl = 'https://log.travelnetng.serv00.net/api';
+const _baseUrl = String.fromEnvironment(
+  'API_BASE_URL',
+  defaultValue: 'https://log.travelnetng.serv00.net/api',
+);
 const _secureStorage = FlutterSecureStorage();
 const _requestTimeout = Duration(seconds: 15);
 const _deviceUuidKey = 'device_uuid';

@@ -7,13 +7,15 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 #[Fillable(['event_id', 'pass_type_id', 'pass_uid', 'signature', 'attendee_name', 'company', 'phone', 'metadata', 'scan_count', 'status'])]
 class Pass extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $casts = [
+        'deleted_at' => 'datetime',
         'metadata' => 'json',
     ];
 
